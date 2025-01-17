@@ -1,0 +1,12 @@
+# /etc/systemd/system/assistant-proxy.socket
+
+[Unit]
+Description=Socket listener for assistant service
+
+[Socket]
+# See systemd.socket(5) for details on how to specify an IP address or interface,
+# or how to use other protocols like UDP.
+ListenStream=127.0.0.1:23323
+
+[Install]
+WantedBy=sockets.target

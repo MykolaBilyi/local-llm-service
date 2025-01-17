@@ -1,0 +1,38 @@
+services:
+  llamacpp:
+    container_name: assistant
+    build:
+      context: https://github.com/ggerganov/llama.cpp.git
+      dockerfile: .devops/cuda.Dockerfile
+      target: server
+      args:
+        UBUNTU_VERSION: "${UBUNTU_VERSION:-22.04}"
+        CUDA_VERSION: "${CUDA_VERSION:-12.6.0}"
+        CUDA_DOCKER_ARCH: "${CUDA_DOCKER_ARCH:-default}"
+    pid: "host"
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:23322:8080"
+    volumes:
+      - ${MODEL_DIR:?Please provide path to a directory with models in GGUF format}:/models
+    command: [
+      "--model", "/models/${MODEL_GGUF}",
+      "--host", "0.0.0.0",
+      "--port", "8080"
+    ]
+    healthcheck:
+      test: curl -fs http://localhost:8080/health || exit 1
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_interval: 5s
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

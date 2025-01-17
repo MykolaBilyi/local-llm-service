@@ -1,0 +1,25 @@
+# /etc/systemd/system/assistant-proxy.service
+
+[Unit]
+Description=Proxy service for assistant service
+
+# This service needs the socket on which it will listen, so we must depend on the socket unit
+Requires=assistant-proxy.socket
+After=assistant-proxy.socket
+
+# This service also requires the service which starts our Docker container
+Requires=assistant.service
+After=assistant.service
+
+# We want to consider this service "part of" assistant.service,
+# i.e. we want this proxy service to be started whenever the container service is requested.
+# Otherwise, the container will start and listen on port 8080,
+# and nothing will be forwarding traffic from port to the container.
+PartOf=assistant.service
+
+[Service]
+# Uncomment the following line if systemd is at least v254
+# Type=notify
+
+# See the paragraph below for details on this line.
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min localhost:23322
