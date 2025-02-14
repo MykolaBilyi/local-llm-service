@@ -1,38 +1,122 @@
 services:
+  # build an image we will use in the script
   llamacpp:
-    container_name: assistant
+    image: llama.cpp
     build:
       context: https://github.com/ggerganov/llama.cpp.git
-      dockerfile: .devops/cuda.Dockerfile
-      target: server
+      dockerfile_inline: |
+        ARG UBUNTU_VERSION=22.04
+        # This needs to generally match the container host's environment.
+        ARG CUDA_VERSION=12.4.0
+        # Target the CUDA build image
+        ARG BASE_CUDA_DEV_CONTAINER=nvidia/cuda:$${CUDA_VERSION}-devel-ubuntu$${UBUNTU_VERSION}
+        # Target the CUDA runtime image
+        ARG BASE_CUDA_RUN_CONTAINER=nvidia/cuda:$${CUDA_VERSION}-runtime-ubuntu$${UBUNTU_VERSION}
+
+        FROM $${BASE_CUDA_DEV_CONTAINER} AS build
+
+        # CUDA architecture to build for (defaults to all supported archs)
+        ARG CUDA_DOCKER_ARCH=default
+
+        RUN apt-get update && \
+            apt-get install -y build-essential cmake python3 python3-pip git libcurl4-openssl-dev libgomp1
+
+        WORKDIR /app
+
+        COPY . .
+
+        # Use the default CUDA archs if not specified
+        RUN if [ "$${CUDA_DOCKER_ARCH}" != "default" ]; then \
+                export CMAKE_ARGS="-DCMAKE_CUDA_ARCHITECTURES=$${CUDA_DOCKER_ARCH}"; \
+            fi && \
+            cmake -B build -DGGML_NATIVE=OFF -DGGML_CUDA=ON -DLLAMA_CURL=ON $${CMAKE_ARGS} -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined . && \
+            cmake --build build --config Release --target llama-server -j$$(nproc)
+
+        RUN mkdir -p /app/lib && \
+            find build -name "*.so" -exec cp {} /app/lib \;
+
+        FROM $${BASE_CUDA_RUN_CONTAINER} AS runtime
+
+        RUN apt-get update \
+            && apt-get install -y libgomp1 curl\
+            && apt autoremove -y \
+            && apt clean -y \
+            && rm -rf /tmp/* /var/tmp/* \
+            && find /var/cache/apt/archives /var/lib/apt/lists -not -name lock -type f -delete \
+            && find /var/cache -type f -delete
+            
+        # Must be set to 0.0.0.0 so it can listen to requests from host machine
+        ENV LLAMA_ARG_HOST=0.0.0.0
+
+        COPY --from=build /app/lib/ /app
+        COPY --from=build /app/build/bin/llama-server /app/llama-server
+
+        WORKDIR /app
+
+        HEALTHCHECK \
+          --interval=30s \
+          --timeout=30s \
+          --start-period=60s \
+          --start-interval=5s \
+          --retries=3 \
+          CMD [ "curl", "-fs", "http://localhost:8080/health" ]
+        
+        ENTRYPOINT [ "/app/llama-server" ]
       args:
         UBUNTU_VERSION: "${UBUNTU_VERSION:-22.04}"
         CUDA_VERSION: "${CUDA_VERSION:-12.6.0}"
         CUDA_DOCKER_ARCH: "${CUDA_DOCKER_ARCH:-default}"
-    pid: "host"
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "127.0.0.1:23322:8080"
     volumes:
-      - ${MODEL_DIR:?Please provide path to a directory with models in GGUF format}:/models
-    command: [
-      "--model", "/models/${MODEL_GGUF}",
-      "--host", "0.0.0.0",
-      "--port", "8080"
-    ]
-    healthcheck:
-      test: curl -fs http://localhost:8080/health || exit 1
-      interval: 30s
-      timeout: 30s
-      retries: 3
-      start_interval: 5s
-      start_period: 60s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    - models:/models # this is important, otherwise docker-compose will not create volume `models`
+    entrypoint: "/usr/bin/true"
+
+  llm:
+    build:
+      context: https://github.com/mostlygeek/llama-swap.git
+      dockerfile_inline: |
+        FROM golang:1.23-alpine3.20 AS base
+
+        # GCC needs to be installed to support go command on alpine
+        RUN apk add --update --no-cache build-base curl git
+        RUN mkdir -p /opt/app
+        WORKDIR /opt/app
+        COPY . .
+        RUN go build -o /opt/app/llama-swap
+
+        FROM alpinelinux/docker-cli:latest AS release
+        COPY --from=base /opt/app/llama-swap /opt/app/llama-swap
+        EXPOSE 8080
+        ENTRYPOINT ["/opt/app/llama-swap"]
+      args:
+        GOOS: "${GOOS:-linux}"
+        GOARCH: "${GOARCH:-amd64}"
+    restart: unless-stopped
+    networks:
+    - services
+    - default
+    configs:
+    - source: llamaswap_yaml
+      target: /etc/llama-swap/config.yaml
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ./llama-docker.sh:/usr/local/sbin/llama-docker:ro
+    command: --config /etc/llama-swap/config.yaml
+
+networks:
+  services:
+    external: true
+  default:
+    name: models
+    attachable: true
+
+configs:
+  llamaswap_yaml:
+    file: ./llama-swap.yaml
+
+volumes:
+  models:
+    name: models
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MODEL_DIR}

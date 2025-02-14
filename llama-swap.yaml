@@ -1,0 +1,132 @@
+models:
+  qwen2.5-coder_7b:
+    aliases:
+    - coder
+    - qwen-coder
+    - qwen2.5-coder
+    env:
+    - LLAMA_ARG_MODEL=/models/qwen2.5-coder_7b-instruct-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=30000
+    - LLAMA_ARG_N_GPU_LAYERS=99
+    cmd: llama-docker qwen25-coder7b --no-warmup
+    proxy: "http://qwen25-coder7b:8080"
+    checkEndpoint: "/health"
+    ttl: 600
+
+  llama3.1_8b:
+    aliases:
+    - llama
+    - llama3
+    - llama3.1
+
+    - gpt-4o-mini
+    - gpt-3.5-turbo
+    env:
+    - LLAMA_ARG_MODEL=/models/llama3.1_8b-instruct-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=16384
+    - LLAMA_ARG_N_GPU_LAYERS=99
+    cmd: llama-docker llama31-8b --no-warmup
+    proxy: "http://llama31-8b:8080"
+    checkEndpoint: "/health"
+    ttl: 600
+
+  deepseek-r1_8b-llama:
+    aliases:
+    - think-fast
+    - deepseek-r1_8b
+    env:
+    - LLAMA_ARG_MODEL=/models/deepseek-r1_8b-llama-distill-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=16000
+    - LLAMA_ARG_N_GPU_LAYERS=99
+    cmd: llama-docker deepseek-r1-8b --no-warmup
+    proxy: "http://deepseek-r1-8b:8080"
+    checkEndpoint: "/health"
+    ttl: 1200
+
+  deepseek-r1_32b-qwen:
+    aliases:
+    - think
+    - think-slow
+    - deepseek-r1_32b
+    env:
+    - LLAMA_ARG_MODEL=/models/deepseek-r1_32b-qwen-distill-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=16000
+    - LLAMA_ARG_N_GPU_LAYERS=5
+    cmd: llama-docker deepseek-r1-32b --no-warmup
+    proxy: "http://deepseek-r1-32b:8080"
+    checkEndpoint: "/health"
+    ttl: 1200
+
+  falcon3_10b:
+    aliases:
+    - falcon3
+    env:
+    - LLAMA_ARG_MODEL=/models/falcon3_10b-instruct-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=32768
+    - LLAMA_ARG_N_GPU_LAYERS=99
+    cmd: llama-docker falcon3-10b --no-warmup
+    proxy: "http://falcon3-10b:8080"
+    checkEndpoint: "/health"
+    ttl: 1200
+
+  granite3.1_8b:
+    aliases:
+    - granite3.1
+    - granite3.1-dense_8b
+    env:
+    - LLAMA_ARG_MODEL=/models/granite3.1-dense_8b-instruct-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=32768
+    - LLAMA_ARG_N_GPU_LAYERS=99
+    cmd: llama-docker granite31-8b --no-warmup
+    proxy: "http://granite31-8b:8080"
+    checkEndpoint: "/health"
+    ttl: 1200
+
+  dolphin3_8b:
+    aliases:
+    - dolphin3
+    - dolphin3_8b-llama3.1
+    env:
+    - LLAMA_ARG_MODEL=/models/dolphin3_8b-llama3.1-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=32768
+    - LLAMA_ARG_N_GPU_LAYERS=99
+    cmd: llama-docker dolphin3-8b --no-warmup
+    proxy: "http://dolphin3-8b:8080"
+    checkEndpoint: "/health"
+    ttl: 1200
+
+  phi4_14b:
+    aliases:
+    - phi4
+    env:
+    - LLAMA_ARG_MODEL=/models/phi4_14b-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=16384
+    - LLAMA_ARG_N_GPU_LAYERS=15
+    cmd: llama-docker phi4-14b --no-warmup
+    proxy: "http://phi4-14b:8080"
+    checkEndpoint: "/health"
+    ttl: 1200
+
+  mistral-small_24b:
+    aliases:
+    - mistral
+    - mistral-small
+    env:
+    - LLAMA_ARG_MODEL=/models/mistral-small_24b-instruct-2501-q4_K_M.gguf
+    - LLAMA_ARG_CTX_SIZE=32768
+    - LLAMA_ARG_N_GPU_LAYERS=10
+    cmd: llama-docker mistral-small-24b --no-warmup
+    proxy: "http://mistral-small-24b:8080"
+    checkEndpoint: "/health"
+    ttl: 1200
+
+# # profiles make it easy to managing multi model (and gpu) configurations.
+# #
+# # Tips:
+# #  - each model must be listening on a unique address and port
+# #  - the model name is in this format: "profile_name:model", like "coding:qwen"
+# #  - the profile will load and unload all models in the profile at the same time
+# profiles:
+#   coding:
+#     - "qwen"
+#     - "llama"
